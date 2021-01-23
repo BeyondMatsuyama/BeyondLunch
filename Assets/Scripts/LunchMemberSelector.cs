@@ -5,37 +5,102 @@ using UnityEngine.UI;
 
 public class LunchMemberSelector : MonoBehaviour
 {
+    // ボタン群
     [SerializeField] private Button btnSelect;
-    [SerializeField] private Transform parentBoard;
+    [SerializeField] private Button btnClear;
+    [SerializeField] private Button btnPrevMonth;
+    [SerializeField] private Button btnNextMonth;
+
+    // テキスト
+    [SerializeField] private Text txtYear;
+    [SerializeField] private Text txtMonth;
+
+    // オブジェクト
+    [SerializeField] private Transform  parentBoard;
     [SerializeField] private GameObject prefabBoard;
 
     private BeyondMember beyond;    // 社員リスト
     private int groupNum;
     private List<GroupBoard> boardList = new List<GroupBoard>();
 
+    private System.DateTime curDate;    
+
     // Start is called before the first frame update
     void Start()
     {
-        // 社員読み込み
-        loadMember();
+        // 初期化
+        initialize();
 
-        // インスタンス生成・配置
-        initBoard();
+        // 前月
+        btnPrevMonth.onClick.AddListener(() =>
+        {
+            curDate = curDate.AddMonths(-1);
+            updateDate();
+        });
+
+        // 翌月
+        btnNextMonth.onClick.AddListener(() =>
+        {
+            curDate = curDate.AddMonths(1);
+            updateDate();
+        });
+
+        // クリア
+        btnClear.onClick.AddListener(() =>
+        {
+            PlayerPrefs.DeleteAll();
+        });
 
         // 抽選
         btnSelect.onClick.AddListener(() =>
         {
-            clearBoard();       // ボードクリア
+            eraseBoard();       // ボード消去
             setLeader();        // リーダー設定
             lotteryMember();    // メンバー抽選
+            saveMember();       // メンバー保存
             showBoard();        // 表示
         });
     }
 
     /// <summary>
-    /// 社員読み込み
+    /// 初期化
     /// </summary>
-    private void loadMember()
+    private void initialize()
+    {
+        loadEmployees();                // 社員名読み込み
+        initBoard();                    // インスタンス生成・配置
+
+        // カレンダー初期化
+        curDate = System.DateTime.Now;
+        updateDate();
+    }
+
+    // カレンダー更新
+    private void updateDate()
+    {
+        // 年月更新
+        txtYear.text = curDate.Year.ToString();
+        txtMonth.text = curDate.Month.ToString();
+
+        // データあり
+        if (boardList[0].IsExist(curDate))
+        {
+            eraseBoard();   // ボード消去
+            loadMember();   // メンバー読み込み
+            showBoard();    // 表示
+        }
+        // データなし
+        else
+        {
+            eraseBoard();   // 消去
+        }
+    }
+    
+
+    /// <summary>
+    /// 社員名読み込み
+    /// </summary>
+    private void loadEmployees()
     {
         // scriptable object から社員名を取得
         beyond = Resources.Load<BeyondMember>("Beyond Member");
@@ -52,6 +117,7 @@ public class LunchMemberSelector : MonoBehaviour
         {
             GameObject obj = Instantiate(prefabBoard, parentBoard);
             GroupBoard board = obj.GetComponent<GroupBoard>();
+            board.GroupNo = i;
             boardList.Add(board);
         }
     }
@@ -68,13 +134,35 @@ public class LunchMemberSelector : MonoBehaviour
     }
 
     /// <summary>
-    /// ボードクリア
+    /// ボード消去
     /// </summary>
-    private void clearBoard()
+    private void eraseBoard()
     {
         foreach(GroupBoard board in boardList)
         {
             board.Initialize();
+        }
+    }
+
+    /// <summary>
+    /// メンバーを保存
+    /// </summary>
+    private void saveMember()
+    {
+        foreach(GroupBoard board in boardList)
+        {
+            board.Save(curDate);
+        }
+    }
+
+    /// <summary>
+    /// メンバーを読み込み
+    /// </summary>
+    private void loadMember()
+    {
+        foreach(GroupBoard board in boardList)
+        {
+            board.Load(curDate);
         }
     }
 
