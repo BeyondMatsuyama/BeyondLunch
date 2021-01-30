@@ -19,6 +19,8 @@ public class LunchMemberSelector : MonoBehaviour
     [SerializeField] private Transform  parentBoard;
     [SerializeField] private GameObject prefabBoard;
 
+    private const int MAX_RETRY = 5;    // リトライ回数
+
     private BeyondMember beyond;    // 社員リスト
     private int groupNum;
     private List<GroupBoard> boardList = new List<GroupBoard>();
@@ -45,10 +47,11 @@ public class LunchMemberSelector : MonoBehaviour
             updateDate();
         });
 
-        // クリア
+        // 全クリア
         btnClear.onClick.AddListener(() =>
         {
             PlayerPrefs.DeleteAll();
+            eraseBoard();
         });
 
         // 抽選
@@ -184,18 +187,73 @@ public class LunchMemberSelector : MonoBehaviour
     /// </summary>
     private void lotteryMember()
     {
+        // 先月メンバーの読み込み
+        foreach(GroupBoard board in boardList)
+        {
+            board.Load(curDate.AddMonths(-1), true);
+        }
+
+        // ランダム抽選
         int gno = Random.Range(0, groupNum - 1);    // 起点となるグループ番号
         List<string> members = new List<string>(beyond.membeList);
+        int retryCnt = 0;
         do
         {
+            // 仮抽選
             int num = members.Count;
             int mid = Random.Range(0, num);
+            string candidate = members[mid];
+
+            retryCnt++;
+            if (retryCnt <= MAX_RETRY)
+            {
+                // 先月が同じリーダーだったら、再抽選
+                if (boardList[gno].IsContainLastMonth(candidate)) continue;
+
+                // メンバーが被ったら再抽選
+                if (isSameMember(gno, candidate)) continue;
+            }
+            else
+            {
+                // Debug.Log(string.Format("retry count overflow : {0}", candidate));
+            }
+
             boardList[gno].SetMember(members[mid]);
             // Debug.Log(string.Format("member[{0}]:{1}", gno, members[mid]));
             members.RemoveAt(mid);
             gno++;
+            retryCnt = 0;
             if (gno >= groupNum) gno = 0;
         } while (members.Count > 0);
     }
+
+    /// <summary>
+    /// 前回と同じメンバーがいないかチェック
+    /// </summary>
+    /// <param name="gno">グループ番号</param>
+    /// <param name="name">候補者名</param>
+    /// <returns>被った場合は true</returns>
+    private bool isSameMember(int gno, string name)
+    {
+        // 候補の先月のグループを特定
+        List<string> lastMonthMembers = null;
+        foreach(GroupBoard board in boardList)
+        {
+            lastMonthMembers = board.GetLastMonthGroupMembers(name);
+            if (lastMonthMembers != null) break;
+        }
+
+        // 先月のメンバーなし
+        if (lastMonthMembers == null) return false;
+
+        // 今月の確定メンバーとの被りをチェック
+        if(boardList[gno].IsSameMember(lastMonthMembers))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
 
 }
